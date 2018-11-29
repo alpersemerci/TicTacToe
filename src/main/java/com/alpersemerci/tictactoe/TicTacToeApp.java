@@ -7,7 +7,9 @@ import com.alpersemerci.tictactoe.model.Player;
 import com.alpersemerci.tictactoe.model.PlayerType;
 import com.alpersemerci.tictactoe.service.game.BoardService;
 import com.alpersemerci.tictactoe.service.game.GameService;
+import com.alpersemerci.tictactoe.service.heuristics.AlphaBetaPruningHeuristicStrategy;
 import com.alpersemerci.tictactoe.service.heuristics.HeuristicStrategy;
+import com.alpersemerci.tictactoe.service.heuristics.RandomHeuristicStrategy;
 import com.alpersemerci.tictactoe.service.heuristics.StayCloseToCenterHeuristicStrategy;
 import com.alpersemerci.tictactoe.service.menu.CommandLineInterfaceGameMenu;
 import com.alpersemerci.tictactoe.service.menu.GameMenu;
@@ -54,7 +56,7 @@ public class TicTacToeApp {
         initializePlayers();
 
         //Decide ai heuristic algorithm
-        decideAiGameStrategy();
+        selectAiGameStrategy();
 
         //and action...
         startGame();
@@ -120,8 +122,20 @@ public class TicTacToeApp {
     /**
      * Decides AI strategy. Please @see HeuristicStrategy implementations for different AI strategies.
      */
-    public static void decideAiGameStrategy() {
-        strategy = new StayCloseToCenterHeuristicStrategy(boardService);
+    public static void selectAiGameStrategy() {
+        Integer strategyIdx = menu.getInput("ai.strategy.input", Integer::parseInt, i -> i > 0 && i < 4);
+
+        switch (strategyIdx) {
+            case 1:
+                strategy = new RandomHeuristicStrategy(boardService);
+                break;
+            case 2:
+                strategy = new StayCloseToCenterHeuristicStrategy(boardService);
+                break;
+            case 3:
+                strategy = new AlphaBetaPruningHeuristicStrategy(boardService, gameService);
+                break;
+        }
     }
 
 
