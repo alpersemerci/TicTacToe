@@ -184,7 +184,7 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
      * score will be updated as 10^3.
      *
      * @param board
-     * @return
+     * @return player, score map
      */
     private Map<Player, Long> evaluateBoard(Board board) {
         Map<Player, Long> playerScoreMap = new HashMap<>();
