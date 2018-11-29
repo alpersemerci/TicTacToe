@@ -25,9 +25,9 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
     @Override
     public Cell getMove(Game game) throws NoPossibleMovesLeftException {
 
-       Cell move = null;
+        Cell move = null;
         try {
-            move = alphaBeta(game , Long.MIN_VALUE, Long.MAX_VALUE, null).getBestMove();
+            move = alphaBeta(game, Long.MIN_VALUE, Long.MAX_VALUE, null).getBestMove();
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
@@ -43,7 +43,7 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         Player currentPlayer = gameService.getCurrentPlayer(game);
 
         if (gameService.isGameOver(game)) {
-            return new AlphaBetaResult(score(game), cell);
+            return new AlphaBetaResult(score(game, currentPlayer), cell);
         }
 
         if (PlayerType.AI.equals(currentPlayer.getType())) {
@@ -53,32 +53,12 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         }
     }
 
-    private Game cloneGame(Game game) {
-        Game cloneGame = new Game(game.getBoard().getSize());
-        cloneGame.setCurrentTurn(game.getCurrentTurn());
-        cloneGame.setBoard(cloneBoard(game.getBoard()));
-        cloneGame.setPlayerList(game.getPlayerList());
-        return cloneGame;
-    }
-
-    private Board cloneBoard(Board board) {
-        Board cloneBoard = new Board(board.getSize());
-
-        IntStream.range(0, board.getSize()).forEach(i ->
-            IntStream.range(0, board.getSize()).forEach(j ->
-                cloneBoard.getCells()[i][j] = board.getCells()[i][j]
-            )
-        );
-
-        return cloneBoard;
-    }
-
     private AlphaBetaResult getMax(Game game, Long alpha, Long beta) throws InvalidMoveException, NoPlayerInGameException {
 
         AlphaBetaResult result = new AlphaBetaResult();
 
         for (Cell cell : boardService.getAvailableCells(game.getBoard())) {
-            Game newGame  = cloneGame(game);
+            Game newGame = cloneGame(game);
             gameService.play(newGame, cell);
 
             AlphaBetaResult abResult = alphaBeta(newGame, alpha, beta, cell);
@@ -107,7 +87,7 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         AlphaBetaResult result = new AlphaBetaResult();
 
         for (Cell cell : boardService.getAvailableCells(game.getBoard())) {
-            Game newGame  = cloneGame(game);
+            Game newGame = cloneGame(game);
             gameService.play(newGame, cell);
 
             AlphaBetaResult abResult = alphaBeta(newGame, alpha, beta, cell);
@@ -130,17 +110,19 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         return result;
     }
 
-    private Long score(Game game) {
-        try {
-            Player player  = gameService.getCurrentPlayer(game);
-            return evaluateBoard(game.getBoard()).getOrDefault(player, 0L);
-        } catch (NoPlayerInGameException e) {
-            log.error(e.getMessage(), e);
+    private Long score(Game game, Player player) {
+
+        Map<Player, Long> scoreMap = evaluateBoard(game.getBoard());
+
+        Optional<Long> score;
+        if (!PlayerType.AI.equals(player.getType())) {
+            score = scoreMap.entrySet().stream().max(Comparator.comparingLong(Map.Entry::getValue)).map(Map.Entry::getValue);
+        } else {
+            score = scoreMap.entrySet().stream().min(Comparator.comparingLong(Map.Entry::getValue)).map(Map.Entry::getValue);
         }
 
-        return 0L;
+        return score.orElse(0L);
     }
-
 
     private Map<Player, Long> evaluateBoard(Board board) {
         Map<Player, Long> playerScoreMap = new HashMap<>();
@@ -148,28 +130,32 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         Integer boardSize = board.getSize();
 
         IntStream.range(0, boardSize).forEach(i ->
-            IntStream.range(0, boardSize).forEach(j -> {
+                IntStream.range(0, boardSize).forEach(j -> {
 
-                List<Player> verticalPlayers = new ArrayList<>();
-                IntStream.range(0, boardSize).forEach(column ->
-                    verticalPlayers.add(board.getCells()[i][column])
-                );
+                    List<Player> verticalPlayers = new ArrayList<>();
+                    IntStream.range(0, boardSize).forEach(column -> {
+                        if (board.getCells()[i][column] != null) {
+                            verticalPlayers.add(board.getCells()[i][column]);
+                        }
+                    });
 
-                if (verticalPlayers.stream().distinct().count() == 1) {
-                    Player player = verticalPlayers.get(0);
-                    playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(2, verticalPlayers.size()));
-                }
+                    if (verticalPlayers.stream().distinct().count() == 1) {
+                        Player player = verticalPlayers.get(0);
+                        playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(10, verticalPlayers.size()));
+                    }
 
-                List<Player> horizontalPlayers = new ArrayList<>();
-                IntStream.range(0, boardSize).forEach(row ->
-                    horizontalPlayers.add(board.getCells()[row][j])
-                );
+                    List<Player> horizontalPlayers = new ArrayList<>();
+                    IntStream.range(0, boardSize).forEach(row -> {
+                        if (board.getCells()[row][j] != null) {
+                            horizontalPlayers.add(board.getCells()[row][j]);
+                        }
+                    });
 
-                if (horizontalPlayers.stream().distinct().count() == 1) {
-                    Player player = horizontalPlayers.get(0);
-                    playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(2, horizontalPlayers.size()));
-                }
-            })
+                    if (horizontalPlayers.stream().distinct().count() == 1) {
+                        Player player = horizontalPlayers.get(0);
+                        playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(10, horizontalPlayers.size()));
+                    }
+                })
         );
 
         //Diagonal board evaluation
@@ -178,15 +164,21 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         List<Player> reverseDiagonalPlayers = new ArrayList<>();
 
         IntStream.range(0, boardSize).forEach(i -> {
-            diagonalPlayers.add(board.getCells()[i][i]);
-            reverseDiagonalPlayers.add(board.getCells()[i][boardSize - i - 1]);
+            if (board.getCells()[i][i] != null) {
+                diagonalPlayers.add(board.getCells()[i][i]);
+            }
+
+            if (board.getCells()[i][boardSize - i - 1] != null) {
+                reverseDiagonalPlayers.add(board.getCells()[i][boardSize - i - 1]);
+            }
+
         });
 
         if (diagonalPlayers.stream().distinct().count() == 1) {
             Optional<Player> optionalPlayer = diagonalPlayers.stream().distinct().reduce((player1, player2) -> player1);
             if (optionalPlayer.isPresent()) {
                 Player player = optionalPlayer.get();
-                playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(2, diagonalPlayers.size()));
+                playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(10, diagonalPlayers.size()));
             }
         }
 
@@ -194,7 +186,7 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
             Optional<Player> optionalPlayer = reverseDiagonalPlayers.stream().distinct().reduce((player1, player2) -> player1);
             if (optionalPlayer.isPresent()) {
                 Player player = optionalPlayer.get();
-                playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(2, reverseDiagonalPlayers.size()));
+                playerScoreMap.put(player, playerScoreMap.getOrDefault(player, 0L) + (long) Math.pow(10, reverseDiagonalPlayers.size()));
             }
         }
 
@@ -205,6 +197,26 @@ public class AlphaBetaPruningHeuristicStrategy implements HeuristicStrategy {
         });
 
         return playerScoreMap;
+    }
+
+    private Game cloneGame(Game game) {
+        Game cloneGame = new Game(game.getBoard().getSize());
+        cloneGame.setCurrentTurn(game.getCurrentTurn());
+        cloneGame.setBoard(cloneBoard(game.getBoard()));
+        cloneGame.setPlayerList(game.getPlayerList());
+        return cloneGame;
+    }
+
+    private Board cloneBoard(Board board) {
+        Board cloneBoard = new Board(board.getSize());
+
+        IntStream.range(0, board.getSize()).forEach(i ->
+                IntStream.range(0, board.getSize()).forEach(j ->
+                        cloneBoard.getCells()[i][j] = board.getCells()[i][j]
+                )
+        );
+
+        return cloneBoard;
     }
 
     @Data
